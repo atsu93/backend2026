@@ -31,11 +31,15 @@ echo "Шаг Б: Алиса совершает операцию: покупае�
 curl -i -X POST "$SERVER_URL/upgrade" -H "Content-Type: application/json" -d "{\"profileId\": \"$KIDS_ID\"}"
 echo -e "\n"
 
-echo "Шаг В: Повторная попытка Алисы посмотреть Ведьмака (Теперь статус ADULT, ожидаем успех 200 OK):"
+echo "Шаг В: Изменение данных профиля (PUT) — Обновляем имя Алисы после апгрейда (Ожидаем 200 OK):"
+curl -i -X PUT "$SERVER_URL/profiles/$KIDS_ID" -H "X-API-KEY: $TOKEN" -H "Content-Type: application/json" -d "{\"name\": \"Alice Premium\", \"type\": \"ADULT\"}"
+echo -e "\n"
+
+echo "Шаг Г: Повторная попытка Алисы посмотреть Ведьмака (Теперь статус ADULT, ожидаем успех 200 OK):"
 curl -i -X POST "$SERVER_URL/watch" -H "Content-Type: application/json" -d "{\"profileId\": \"$KIDS_ID\", \"mediaId\": \"$WITCHER_ID\"}"
 echo -e "\n"
 
-echo "Шаг Г: Проверка изменения состояния (viewsCount фильма должен стать 1):"
+echo "Шаг Д: Проверка изменения состояния (viewsCount фильма должен стать 1):"
 curl -s -X GET "$SERVER_URL/media/$WITCHER_ID"
 echo -e "\n"
 
@@ -45,3 +49,30 @@ echo "============================================="
 echo "Запрос только бесплатных фильмов (onlyFree=true):"
 curl -s -X GET "$SERVER_URL/media?onlyFree=true"
 echo -e "\n"
+
+echo "Запрос фильмов с фильтрацией по возрасту (ageRating=18):"
+curl -s -X GET "$SERVER_URL/media?ageRating=18"
+echo -e "\n"
+
+echo "============================================="
+echo "====== 4. ТЕСТЫ НА УСТОЙЧИВОСТЬ И CRUD ======"
+echo "============================================="
+echo "Шаг Е: Отправка некорректного JSON для проверки устойчивости (Ожидаем 400 Bad Request):"
+curl -i -X POST "$SERVER_URL/watch" -H "Content-Type: application/json" -d "{\"profileId\": \"$KIDS_ID\", \"mediaId\":"
+echo -e "\n"
+
+echo "Шаг Ж: Запрос с несуществующим ID профиля (Ожидаем отказ 404 Not Found):"
+curl -i -X POST "$SERVER_URL/watch" -H "Content-Type: application/json" -d "{\"profileId\": \"invalid-id-999\", \"mediaId\": \"$WITCHER_ID\"}"
+echo -e "\n"
+
+echo "Шаг З: Удаление медиа-ресурса (DELETE) по ID (Ожидаем 200 OK):"
+curl -i -X DELETE "$SERVER_URL/media/$WITCHER_ID" -H "X-API-KEY: $TOKEN"
+echo -e "\n"
+
+echo "Шаг И: Попытка запросить удаленный фильм (Ожидаем отказ 404 Not Found):"
+curl -i -X GET "$SERVER_URL/media/$WITCHER_ID"
+echo -e "\n"
+
+echo "============================================="
+echo "========= ТЕСТИРОВАНИЕ ЗАВЕРШЕНО ============"
+echo "============================================="
