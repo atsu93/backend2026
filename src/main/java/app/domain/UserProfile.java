@@ -1,51 +1,104 @@
 package app.domain;
 
-import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class UserProfile {
     private final String id;
     private String name;
-    private ProfileType type;
+    private SubscriptionType type;
     private double balance;
     private final List<String> watchedMediaIds = new ArrayList<>();
 
-    public UserProfile(String id, String name, ProfileType type){
+    public UserProfile(String id, String name) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Profile ID cannot be null or blank");
+        }
         this.id = id;
-        this.name = name;
-        this.type = type;
-        this.balance = 500.0;
+        this.name = validateAndNormalizeName(name);
+        this.type = SubscriptionType.REGULAR;
+        this.balance = 0.0;
     }
 
-    public void addWatchedMedia(String mediaId){
-        if (!watchedMediaIds.contains(mediaId)){
+    public void addWatchedMedia(String mediaId) {
+        if (mediaId == null || mediaId.isBlank()) {
+            throw new IllegalArgumentException("Media ID cannot be null or blank");
+        }
+        if (!watchedMediaIds.contains(mediaId)) {
             watchedMediaIds.add(mediaId);
         }
     }
 
+    public void addMoney(double amount) {
+        validateAmount(amount);
+        this.balance += amount;
+    }
+
     public void spendMoney(double amount) {
+        validateAmount(amount);
+        if (this.balance < amount) {
+            throw new IllegalStateException("Insufficient funds");
+        }
         this.balance -= amount;
     }
 
-    public String getId(){
+    private void validateAmount(double amount) {
+        if (Double.isNaN(amount) || Double.isInfinite(amount) || amount <= 0) {
+            throw new IllegalArgumentException("Amount must be a positive finite number");
+        }
+    }
+
+    private String validateAndNormalizeName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Profile name cannot be null or blank");
+        }
+        return name.trim();
+    }
+
+    public String getId() {
         return id;
     }
-    public String getName(){
+
+    public String getName() {
         return name;
     }
-    public void setName(String name){
-        this.name = name;
+
+    public void setName(String name) {
+        this.name = validateAndNormalizeName(name);
     }
-    public ProfileType getType(){
+
+    public SubscriptionType getType() {
         return type;
     }
-    public void setType(ProfileType type){
-        this.type = type;
+
+    public void setType(SubscriptionType type) {
+        this.type = Objects.requireNonNull(type, "Subscription type cannot be null");
     }
-    public List<String> getWatchedMediaIds(){
-        return watchedMediaIds;
+
+    public List<String> getWatchedMediaIds() {
+        return Collections.unmodifiableList(watchedMediaIds);
     }
+
     public double getBalance() {
         return balance;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        UserProfile that = (UserProfile) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }
