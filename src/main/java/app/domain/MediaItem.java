@@ -2,7 +2,6 @@ package app.domain;
 
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class MediaItem {
     private static final Set<String> VALID_RATINGS = Set.of(
@@ -14,7 +13,7 @@ public class MediaItem {
     private String title;
     private String ageRating;
     private boolean isPremium;
-    private final AtomicInteger viewsCount = new AtomicInteger(0);
+    private int viewsCount = 0;
 
     public MediaItem(String id, String title, String ageRating, boolean isPremium) {
         if (id == null || id.isBlank()) {
@@ -34,7 +33,7 @@ public class MediaItem {
         return title.trim();
     }
 
-    private String validateAndNormalizeRating(String ageRating) {
+    public static String validateAndNormalizeRating(String ageRating) {
         if (ageRating == null || ageRating.isBlank()) {
             throw new IllegalArgumentException("Age rating cannot be null or blank");
         }
@@ -46,7 +45,7 @@ public class MediaItem {
     }
 
     public void incrementViews() {
-        viewsCount.incrementAndGet();
+        viewsCount++;
     }
 
     public String getId() {
@@ -78,7 +77,7 @@ public class MediaItem {
     }
 
     public int getViewsCount() {
-        return viewsCount.get();
+        return viewsCount;
     }
 
     @Override

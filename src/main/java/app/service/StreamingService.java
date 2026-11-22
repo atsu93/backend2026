@@ -4,24 +4,23 @@ import app.domain.MediaItem;
 import app.domain.SubscriptionType;
 import app.domain.UserProfile;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
 
 public class StreamingService {
     private static final double PREMIUM_PRICE = 299.0;
 
-    private final Map<String, UserProfile> profiles = new ConcurrentHashMap<>();
-    private final Map<String, MediaItem> mediaItems = new ConcurrentHashMap<>();
+    private final Map<String, UserProfile> profiles = new HashMap<>();
+    private final Map<String, MediaItem> mediaItems = new HashMap<>();
 
-    public UserProfile createProfile(String name) {
+    public UserProfile createProfile(String name, int age) {
         if (name == null || name.isBlank()) {
             throw new StreamingException("Profile name cannot be blank", 400);
         }
+        if (age < 0 || age > 100) {
+            throw new StreamingException("Age must be between 0 and 120", 400);
+        }
         String id = UUID.randomUUID().toString();
-        UserProfile profile = new UserProfile(id, name);
+        UserProfile profile = new UserProfile(id, name, age);
         profiles.put(id, profile);
         return profile;
     }
@@ -66,6 +65,9 @@ public class StreamingService {
             throw new StreamingException("Amount must be a positive finite number", 400);
         }
         UserProfile profile = getProfile(profileId);
+        if (Double.isInfinite(profile.getBalance() + amount)) {
+            throw new StreamingException("Balance overflow", 400);
+        }
         profile.addMoney(amount);
     }
 
@@ -93,6 +95,8 @@ public class StreamingService {
 
     public MediaItem updateMedia(String id, String title, String ageRating, Boolean isPremium) {
         MediaItem item = getMedia(id);
+        String oldTitle = item.getTitle();
+        String oldAgeRating = item.getAgeRating();
         try {
             if (title != null) {
                 item.setTitle(title);
@@ -105,6 +109,8 @@ public class StreamingService {
             }
             return item;
         } catch (IllegalArgumentException e) {
+            item.setTitle(oldTitle);
+            item.setAgeRating(oldAgeRating);
             throw new StreamingException(e.getMessage(), 400);
         }
     }
@@ -122,7 +128,7 @@ public class StreamingService {
         return mediaItems.values().stream()
                 .filter(m -> ageRating == null || ageRating.isBlank()
                         || m.getAgeRating().equalsIgnoreCase(ageRating.trim()))
-                .filter(m -> onlyFree == null || !onlyFree || !m.isPremium())
+                .filter(m -> onlyFree == null || !onlyFree == m.isPremium())
                 .toList();
     }
 
@@ -132,6 +138,9 @@ public class StreamingService {
 
         if (!profile.getType().canWatch(media)) {
             throw new StreamingException("Access denied: subscription or age restrictions apply", 403);
+        }
+        if (!profile.canWatchByAge(media)) {
+            throw new StreamingException("Access denied: age restrictions apply", 403);
         }
 
         profile.addWatchedMedia(mediaId);

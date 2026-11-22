@@ -1,25 +1,38 @@
 package app.domain;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class UserProfile {
     private final String id;
     private String name;
+    private int age;
     private SubscriptionType type;
     private double balance;
     private final List<String> watchedMediaIds = new ArrayList<>();
 
-    public UserProfile(String id, String name) {
+    public UserProfile(String id, String name, int age) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Profile ID cannot be null or blank");
         }
         this.id = id;
         this.name = validateAndNormalizeName(name);
+        this.age = validateAge(age);
         this.type = SubscriptionType.REGULAR;
         this.balance = 0.0;
+    }
+
+    private static final Set<String> RESTRICTED_RATINGS = Set.of("R", "NC-17", "18+");
+
+    public boolean canWatchByAge(MediaItem media) {
+        Objects.requireNonNull(media, "Media item cannot be null");
+        String rating = media.getAgeRating();
+        if (rating == null) {
+            return false;
+        }
+        if (RESTRICTED_RATINGS.contains(rating.trim().toUpperCase())) {
+            return this.age >= 18;
+        }
+        return true;
     }
 
     public void addWatchedMedia(String mediaId) {
@@ -33,7 +46,11 @@ public class UserProfile {
 
     public void addMoney(double amount) {
         validateAmount(amount);
-        this.balance += amount;
+        double newBalance = this.balance + amount;
+        if (Double.isInfinite(newBalance)) {
+            throw new IllegalArgumentException("Balance overflow");
+        }
+        this.balance = newBalance;
     }
 
     public void spendMoney(double amount) {
@@ -57,6 +74,13 @@ public class UserProfile {
         return name.trim();
     }
 
+    private int validateAge(int age) {
+        if (age < 0 || age > 100) {
+            throw new IllegalArgumentException("Age must be between 0 and 100");
+        }
+        return age;
+    }
+
     public String getId() {
         return id;
     }
@@ -67,6 +91,14 @@ public class UserProfile {
 
     public void setName(String name) {
         this.name = validateAndNormalizeName(name);
+    }
+
+    public int getAge() {
+        return age;
+    }
+
+    public void setAge(int age) {
+        this.age = validateAge(age);
     }
 
     public SubscriptionType getType() {

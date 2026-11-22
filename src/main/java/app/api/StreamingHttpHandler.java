@@ -21,6 +21,7 @@ public class StreamingHttpHandler implements HttpHandler {
     private final StreamingService streamingService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String SECRET_KEY = "super-secret-token-123";
+    private static final int MAX_BODY_SIZE = 65536;
 
     public StreamingHttpHandler(StreamingService streamingService) {
         this.streamingService = streamingService;
@@ -85,7 +86,11 @@ public class StreamingHttpHandler implements HttpHandler {
                         sendResponse(exchange, 400, Map.of("error", "Name cannot be empty"));
                         return;
                     }
-                    sendResponse(exchange, 201, streamingService.createProfile(dto.name));
+                    if (dto.age == null || dto.age < 0 || dto.age > 100) {
+                        sendResponse(exchange, 400, Map.of("error", "Age must be between 0 and 100"));
+                        return;
+                    }
+                    sendResponse(exchange, 201, streamingService.createProfile(dto.name, dto.age));
                 }
                 default -> sendMethodNotAllowed(exchange, "GET, POST");
             }
@@ -223,7 +228,10 @@ public class StreamingHttpHandler implements HttpHandler {
     }
 
     private <T> T readBody(HttpExchange exchange, Class<T> clazz) throws IOException {
-        byte[] rawBody = exchange.getRequestBody().readAllBytes();
+        byte[] rawBody = exchange.getRequestBody().readNBytes(MAX_BODY_SIZE + 1);
+        if (rawBody.length > MAX_BODY_SIZE) {
+            throw new StreamingException("Request body too large", 413);
+        }
         if (rawBody.length == 0) {
             throw new StreamingException("Request body is required", 400);
         }
