@@ -1,6 +1,12 @@
 package app.api.dto;
 
-public class WatchRequest {
-    public String profileId;
-    public String mediaId;
+import jakarta.validation.constraints.NotBlank;
+
+public record WatchRequest(
+        @NotBlank(message = "profileId is required")
+        String profileId,
+
+        @NotBlank(message = "mediaId is required")
+        String mediaId
+) {
 }

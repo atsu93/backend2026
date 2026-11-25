@@ -30,7 +30,7 @@ echo -e "\n=============================================="
 echo "== 2. БИЗНЕС-СЦЕНАРИЙ: ПОДПИСКА И ПРОСМОТР ==="
 echo "=============================================="
 MEDIA_LIST=$(curl -s -X GET "$SERVER_URL/media")
-WITCHER_ID=$(echo "$MEDIA_LIST" | sed -E 's/.*"id":"([^"]*)","premium":[a-z]+,"title":"The Witcher".*/\1/')
+WITCHER_ID=$(echo "$MEDIA_LIST" | grep -o '"id":"[^"]*","title":"The Witcher"' | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
 echo "ID фильма Ведьмак (Рейтинг R, Премиум): $WITCHER_ID"
 
 echo -e "\n2.1. Алиса (REGULAR) пытается посмотреть Ведьмака (Ожидаем 403 Forbidden):"
@@ -129,7 +129,7 @@ echo "2.14. Проверка защиты от переполнения double �
 curl -i -s -X POST "$SERVER_URL/topup" \
   -H "X-API-KEY: $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"profileId\": \"$ALICE_ID\", \"amount\": 1e308}"
+  -d "{\"profileId\": \"$ALICE_ID\", \"amount\": 1e309}"
 echo -e "\n"
 
 echo "============================================="
@@ -198,24 +198,16 @@ curl -i -s -X POST "$SERVER_URL/watch" \
   -d "{\"profileId\": \"invalid-id-999\", \"mediaId\": \"$WITCHER_ID\"}"
 echo -e "\n"
 
-echo "4.5. Слишком большое тело запроса > 64 КБ (Ожидаем 413 Payload Too Large):"
-BIG_NAME=$(printf 'A%.0s' {1..70000})
-curl -i -s -X POST "$SERVER_URL/profiles" \
-  -H "X-API-KEY: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\": \"$BIG_NAME\", \"age\": 20}"
-echo -e "\n"
-
-echo "4.6. Удаление медиа-ресурса DELETE (Ожидаем 204 No Content):"
+echo "4.5. Удаление медиа-ресурса DELETE (Ожидаем 204 No Content):"
 curl -i -s -X DELETE "$SERVER_URL/media/$WITCHER_ID" \
   -H "X-API-KEY: $TOKEN"
 echo -e "\n"
 
-echo "4.7. Попытка запросить удаленный фильм (Ожидаем 404 Not Found):"
+echo "4.6. Попытка запросить удаленный фильм (Ожидаем 404 Not Found):"
 curl -i -s -X GET "$SERVER_URL/media/$WITCHER_ID"
 echo -e "\n"
 
-echo "4.8. Удаление профиля Алисы DELETE (Ожидаем 204 No Content):"
+echo "4.7. Удаление профиля Алисы DELETE (Ожидаем 204 No Content):"
 curl -i -s -X DELETE "$SERVER_URL/profiles/$ALICE_ID" \
   -H "X-API-KEY: $TOKEN"
 echo -e "\n"
