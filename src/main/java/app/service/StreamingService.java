@@ -3,94 +3,111 @@ package app.service;
 import app.domain.MediaItem;
 import app.domain.SubscriptionType;
 import app.domain.UserProfile;
+import app.repository.MediaRepository;
+import app.repository.ProfileRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
+@Service
 public class StreamingService {
-    private static final double PREMIUM_PRICE = 299.0;
+    private final ProfileRepository profileRepository;
+    private final MediaRepository mediaRepository;
+    private final double premiumPrice;
 
-    private final Map<String, UserProfile> profiles = new HashMap<>();
-    private final Map<String, MediaItem> mediaItems = new HashMap<>();
+    public StreamingService(
+            ProfileRepository profileRepository,
+            MediaRepository mediaRepository,
+            @Value("${app.subscription.premium-price:299.0}") double premiumPrice) {
+        this.profileRepository = profileRepository;
+        this.mediaRepository = mediaRepository;
+        this.premiumPrice = premiumPrice;
+    }
 
     public UserProfile createProfile(String name, int age) {
         if (name == null || name.isBlank()) {
-            throw new StreamingException("Profile name cannot be blank", 400);
+            throw new IllegalArgumentException("Profile name cannot be blank");
         }
         if (age < 0 || age > 100) {
-            throw new StreamingException("Age must be between 0 and 120", 400);
+            throw new IllegalArgumentException("Age must be between 0 and 100");
         }
         String id = UUID.randomUUID().toString();
         UserProfile profile = new UserProfile(id, name, age);
-        profiles.put(id, profile);
-        return profile;
+        return profileRepository.save(profile);
     }
 
     public UserProfile getProfile(String id) {
         if (id == null || id.isBlank()) {
-            throw new StreamingException("Profile ID cannot be blank", 400);
+            throw new IllegalArgumentException("Profile ID cannot be blank");
         }
-        UserProfile profile = profiles.get(id);
-        if (profile == null) {
-            throw new StreamingException("Profile not found", 404);
-        }
-        return profile;
+        return profileRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile not found: " + id));
     }
 
     public List<UserProfile> getAllProfiles() {
-        return new ArrayList<>(profiles.values());
+        return profileRepository.findAll();
     }
 
     public UserProfile updateProfile(String id, String name) {
         UserProfile profile = getProfile(id);
         if (name != null) {
             if (name.isBlank()) {
-                throw new StreamingException("Profile name cannot be blank", 400);
+                throw new IllegalArgumentException("Profile name cannot be blank");
             }
             profile.setName(name);
+            profileRepository.save(profile);
         }
         return profile;
     }
 
     public void deleteProfile(String id) {
         if (id == null || id.isBlank()) {
-            throw new StreamingException("Profile ID cannot be blank", 400);
+            throw new IllegalArgumentException("Profile ID cannot be blank");
         }
-        if (profiles.remove(id) == null) {
-            throw new StreamingException("Profile not found", 404);
+        if (!profileRepository.deleteById(id)) {
+            throw new ResourceNotFoundException("Profile not found: " + id);
         }
     }
 
     public void topUpBalance(String profileId, double amount) {
         if (Double.isNaN(amount) || Double.isInfinite(amount) || amount <= 0) {
-            throw new StreamingException("Amount must be a positive finite number", 400);
+            throw new IllegalArgumentException("Amount must be a positive finite number");
         }
         UserProfile profile = getProfile(profileId);
         if (Double.isInfinite(profile.getBalance() + amount)) {
-            throw new StreamingException("Balance overflow", 400);
+            throw new IllegalArgumentException("Balance overflow");
         }
         profile.addMoney(amount);
+        profileRepository.save(profile);
+    }
+
+    public void buyPremium(String profileId) {
+        UserProfile profile = getProfile(profileId);
+        if (profile.getType() == SubscriptionType.PREMIUM) {
+            throw new BusinessConflictException("You already have Premium status");
+        }
+        if (profile.getBalance() < premiumPrice) {
+            throw new IllegalArgumentException("Insufficient funds to buy Premium");
+        }
+        profile.spendMoney(premiumPrice);
+        profile.setType(SubscriptionType.PREMIUM);
+        profileRepository.save(profile);
     }
 
     public MediaItem createMedia(String title, String ageRating, boolean isPremium) {
-        try {
-            String id = UUID.randomUUID().toString();
-            MediaItem item = new MediaItem(id, title, ageRating, isPremium);
-            mediaItems.put(id, item);
-            return item;
-        } catch (IllegalArgumentException e) {
-            throw new StreamingException(e.getMessage(), 400);
-        }
+        String id = UUID.randomUUID().toString();
+        MediaItem item = new MediaItem(id, title, ageRating, isPremium);
+        return mediaRepository.save(item);
     }
 
     public MediaItem getMedia(String id) {
         if (id == null || id.isBlank()) {
-            throw new StreamingException("Media ID cannot be blank", 400);
+            throw new IllegalArgumentException("Media ID cannot be blank");
         }
-        MediaItem item = mediaItems.get(id);
-        if (item == null) {
-            throw new StreamingException("Media item not found", 404);
-        }
-        return item;
+        return mediaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Media item not found: " + id));
     }
 
     public MediaItem updateMedia(String id, String title, String ageRating, Boolean isPremium) {
@@ -107,25 +124,25 @@ public class StreamingService {
             if (isPremium != null) {
                 item.setPremium(isPremium);
             }
-            return item;
+            return mediaRepository.save(item);
         } catch (IllegalArgumentException e) {
             item.setTitle(oldTitle);
             item.setAgeRating(oldAgeRating);
-            throw new StreamingException(e.getMessage(), 400);
+            throw e;
         }
     }
 
     public void deleteMedia(String id) {
         if (id == null || id.isBlank()) {
-            throw new StreamingException("Media ID cannot be blank", 400);
+            throw new IllegalArgumentException("Media ID cannot be blank");
         }
-        if (mediaItems.remove(id) == null) {
-            throw new StreamingException("Media item not found", 404);
+        if (!mediaRepository.deleteById(id)) {
+            throw new ResourceNotFoundException("Media item not found: " + id);
         }
     }
 
     public List<MediaItem> getMediaFiltered(String ageRating, Boolean onlyFree) {
-        return mediaItems.values().stream()
+        return mediaRepository.findAll().stream()
                 .filter(m -> ageRating == null || ageRating.isBlank()
                         || m.getAgeRating().equalsIgnoreCase(ageRating.trim()))
                 .filter(m -> onlyFree == null || !onlyFree == m.isPremium())
@@ -137,25 +154,16 @@ public class StreamingService {
         MediaItem media = getMedia(mediaId);
 
         if (!profile.getType().canWatch(media)) {
-            throw new StreamingException("Access denied: subscription or age restrictions apply", 403);
+            throw new MediaAccessDeniedException("Access denied: Premium subscription required");
         }
         if (!profile.canWatchByAge(media)) {
-            throw new StreamingException("Access denied: age restrictions apply", 403);
+            throw new MediaAccessDeniedException("Access denied: age restrictions apply");
         }
 
         profile.addWatchedMedia(mediaId);
         media.incrementViews();
-    }
 
-    public void buyPremium(String profileId) {
-        UserProfile profile = getProfile(profileId);
-        if (profile.getType() == SubscriptionType.PREMIUM) {
-            throw new StreamingException("You already have Premium status", 409);
-        }
-        if (profile.getBalance() < PREMIUM_PRICE) {
-            throw new StreamingException("Insufficient funds to buy Premium", 400);
-        }
-        profile.spendMoney(PREMIUM_PRICE);
-        profile.setType(SubscriptionType.PREMIUM);
+        profileRepository.save(profile);
+        mediaRepository.save(media);
     }
 }
